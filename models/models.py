@@ -1,6 +1,6 @@
 """
 SQLAlchemy models for the Hotel Booking System.
-Tables: User, Room, Booking, RiskAlert
+Tables: User, Room, Booking, SystemConfig
 """
 
 from datetime import datetime
@@ -17,7 +17,6 @@ class User(db.Model):
     email         = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role          = db.Column(db.String(20), nullable=False, default='guest')
-    # role: 'guest' | 'staff' | 'admin'
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
     is_active     = db.Column(db.Boolean, default=True)
 
@@ -38,68 +37,57 @@ class User(db.Model):
 class Room(db.Model):
     __tablename__ = 'rooms'
 
-    id           = db.Column(db.Integer, primary_key=True)
-    room_number  = db.Column(db.String(10), unique=True, nullable=False)
-    room_type    = db.Column(db.String(1), nullable=False)   # A–G (matches dataset)
-    type_label   = db.Column(db.String(50), nullable=False)  # e.g. "Standard"
+    id              = db.Column(db.Integer, primary_key=True)
+    room_number     = db.Column(db.String(10), unique=True, nullable=False)
+    room_type       = db.Column(db.String(1), nullable=False)
+    type_label      = db.Column(db.String(50), nullable=False)
     price_per_night = db.Column(db.Float, nullable=False)
-    capacity     = db.Column(db.Integer, nullable=False, default=2)
-    description  = db.Column(db.String(300))
-    is_available = db.Column(db.Boolean, default=True)
+    capacity        = db.Column(db.Integer, nullable=False, default=2)
+    description     = db.Column(db.String(300))
+    image_url       = db.Column(db.String(500), default='')   # NEW: room image
+    is_available    = db.Column(db.Boolean, default=True)
 
     bookings = db.relationship('Booking', backref='room', lazy=True)
 
     def to_dict(self):
         return {
-            'id':             self.id,
-            'room_number':    self.room_number,
-            'room_type':      self.room_type,
-            'type_label':     self.type_label,
+            'id':              self.id,
+            'room_number':     self.room_number,
+            'room_type':       self.room_type,
+            'type_label':      self.type_label,
             'price_per_night': self.price_per_night,
-            'capacity':       self.capacity,
-            'description':    self.description,
-            'is_available':   self.is_available,
+            'capacity':        self.capacity,
+            'description':     self.description,
+            'image_url':       self.image_url or '',
+            'is_available':    self.is_available,
         }
 
 
 class Booking(db.Model):
     __tablename__ = 'bookings'
 
-    id              = db.Column(db.Integer, primary_key=True)
-    guest_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    room_id         = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
-
-    check_in        = db.Column(db.Date, nullable=False)
-    check_out       = db.Column(db.Date, nullable=False)
-    adults          = db.Column(db.Integer, nullable=False, default=1)
-    special_requests = db.Column(db.String(500), default='')
+    id                   = db.Column(db.Integer, primary_key=True)
+    guest_id             = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    room_id              = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
+    check_in             = db.Column(db.Date, nullable=False)
+    check_out            = db.Column(db.Date, nullable=False)
+    adults               = db.Column(db.Integer, nullable=False, default=1)
+    special_requests     = db.Column(db.String(500), default='')
     num_special_requests = db.Column(db.Integer, default=0)
+    pay_now              = db.Column(db.Boolean, nullable=False, default=False)
 
-    pay_now         = db.Column(db.Boolean, nullable=False, default=False)
-
-    # ML output
-    risk_score      = db.Column(db.Integer)           # 0–100
-    risk_level      = db.Column(db.String(10))        # LOW / MEDIUM / HIGH
+    risk_score       = db.Column(db.Integer)
+    risk_level       = db.Column(db.String(10))
     risk_probability = db.Column(db.Float)
 
-    # Booking lifecycle
-    # pending_review → awaiting staff decision (HIGH risk)
-    # confirmed      → guest gets confirmation
-    # requires_prepayment → staff asks guest to pay first
-    # rejected       → staff cancelled it
-    # cancelled      → guest cancelled
-    status          = db.Column(db.String(30), nullable=False, default='pending')
-
-    created_at      = db.Column(db.DateTime, default=datetime.utcnow)
-    reviewed_at     = db.Column(db.DateTime)
-    reviewed_by_id  = db.Column(db.Integer, db.ForeignKey('users.id'))
-    staff_notes     = db.Column(db.String(500))
+    status         = db.Column(db.String(30), nullable=False, default='pending')
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_at    = db.Column(db.DateTime)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    staff_notes    = db.Column(db.String(500))
 
     def total_nights(self):
         return (self.check_out - self.check_in).days
-
-    def lead_time(self):
-        return (self.check_in - datetime.utcnow().date()).days
 
     def to_dict(self):
         return {
@@ -112,6 +100,7 @@ class Booking(db.Model):
             'room_type':        self.room.room_type if self.room else None,
             'type_label':       self.room.type_label if self.room else None,
             'price_per_night':  self.room.price_per_night if self.room else None,
+            'image_url':        self.room.image_url if self.room else '',
             'check_in':         self.check_in.isoformat(),
             'check_out':        self.check_out.isoformat(),
             'total_nights':     self.total_nights(),
@@ -129,7 +118,6 @@ class Booking(db.Model):
 
 
 class SystemConfig(db.Model):
-    """Key-value config — stores ML thresholds, hotel settings."""
     __tablename__ = 'system_config'
 
     key   = db.Column(db.String(80), primary_key=True)

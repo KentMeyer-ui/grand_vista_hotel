@@ -1,11 +1,5 @@
 """
 Admin / Staff routes
-  GET  /api/admin/users              — list all users (admin)
-  POST /api/admin/users              — create staff/admin account (admin)
-  PUT  /api/admin/users/<id>         — update role / activate (admin)
-  GET  /api/admin/config             — get system config (admin)
-  PUT  /api/admin/config             — update ML thresholds (admin)
-  GET  /api/admin/reports/summary    — booking stats summary (staff/admin)
 """
 
 from flask import Blueprint, request, jsonify
@@ -21,14 +15,12 @@ def _get_current_user():
     return User.query.get(user_id)
 
 
-# ── Users ─────────────────────────────────────────────────────────────────────
 @admin_bp.route('/users', methods=['GET'])
 @jwt_required()
 def list_users():
     user = _get_current_user()
     if user.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
-
     users = User.query.order_by(User.created_at.desc()).all()
     return jsonify([u.to_dict() for u in users]), 200
 
@@ -41,8 +33,7 @@ def create_staff():
         return jsonify({'error': 'Admin access required'}), 403
 
     data = request.get_json()
-    required = ['name', 'email', 'password', 'role']
-    for f in required:
+    for f in ['name', 'email', 'password', 'role']:
         if not data.get(f):
             return jsonify({'error': f'{f} is required'}), 400
 
@@ -70,15 +61,26 @@ def update_user(user_id):
     if current.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
 
+    # FIXED: prevent admin from changing their own role
+    if current.id == user_id and 'role' in request.get_json(silent=True or {}):
+        data = request.get_json()
+        if 'role' in data and data['role'] != current.role:
+            return jsonify({'error': 'You cannot change your own role'}), 403
+
     target = User.query.get_or_404(user_id)
     data   = request.get_json()
 
     if 'role' in data:
+        # Extra guard: block self role change
+        if target.id == current.id and data['role'] != current.role:
+            return jsonify({'error': 'You cannot change your own role'}), 403
         if data['role'] not in ('guest', 'staff', 'admin'):
             return jsonify({'error': 'Invalid role'}), 400
         target.role = data['role']
 
     if 'is_active' in data:
+        if target.id == current.id:
+            return jsonify({'error': 'You cannot deactivate your own account'}), 403
         target.is_active = bool(data['is_active'])
 
     if 'name' in data:
@@ -88,14 +90,12 @@ def update_user(user_id):
     return jsonify(target.to_dict()), 200
 
 
-# ── System config ─────────────────────────────────────────────────────────────
 @admin_bp.route('/config', methods=['GET'])
 @jwt_required()
 def get_config():
     user = _get_current_user()
     if user.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
-
     configs = SystemConfig.query.all()
     return jsonify({c.key: c.value for c in configs}), 200
 
@@ -127,7 +127,6 @@ def update_config():
     return jsonify({c.key: c.value for c in configs}), 200
 
 
-# ── Reports ───────────────────────────────────────────────────────────────────
 @admin_bp.route('/reports/summary', methods=['GET'])
 @jwt_required()
 def summary_report():
@@ -135,29 +134,23 @@ def summary_report():
     if user.role not in ('staff', 'admin'):
         return jsonify({'error': 'Staff access required'}), 403
 
-    total      = Booking.query.count()
-    confirmed  = Booking.query.filter_by(status='confirmed').count()
-    pending    = Booking.query.filter_by(status='pending_review').count()
-    rejected   = Booking.query.filter_by(status='rejected').count()
-    cancelled  = Booking.query.filter_by(status='cancelled').count()
-    prepay     = Booking.query.filter_by(status='requires_prepayment').count()
-
-    low_risk    = Booking.query.filter_by(risk_level='LOW').count()
-    medium_risk = Booking.query.filter_by(risk_level='MEDIUM').count()
-    high_risk   = Booking.query.filter_by(risk_level='HIGH').count()
+    total     = Booking.query.count()
+    confirmed = Booking.query.filter_by(status='confirmed').count()
+    pending   = Booking.query.filter_by(status='pending_review').count()
+    rejected  = Booking.query.filter_by(status='rejected').count()
+    cancelled = Booking.query.filter_by(status='cancelled').count()
+    prepay    = Booking.query.filter_by(status='requires_prepayment').count()
+    low_risk  = Booking.query.filter_by(risk_level='LOW').count()
+    med_risk  = Booking.query.filter_by(risk_level='MEDIUM').count()
+    high_risk = Booking.query.filter_by(risk_level='HIGH').count()
 
     return jsonify({
         'totals': {
-            'total':                total,
-            'confirmed':            confirmed,
-            'pending_review':       pending,
-            'requires_prepayment':  prepay,
-            'rejected':             rejected,
-            'cancelled':            cancelled,
+            'total': total, 'confirmed': confirmed,
+            'pending_review': pending, 'requires_prepayment': prepay,
+            'rejected': rejected, 'cancelled': cancelled,
         },
         'risk_distribution': {
-            'LOW':    low_risk,
-            'MEDIUM': medium_risk,
-            'HIGH':   high_risk,
+            'LOW': low_risk, 'MEDIUM': med_risk, 'HIGH': high_risk,
         },
     }), 200

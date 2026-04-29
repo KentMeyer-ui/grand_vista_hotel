@@ -119,6 +119,10 @@ def _seed():
         print('[seed] Config created.')
 
 
+# For gunicorn compatibility
+app = create_app()
+
+
 if __name__ == '__main__':
     app = create_app()
     print('\n' + '='*58)
