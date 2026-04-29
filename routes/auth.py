@@ -2,12 +2,17 @@
 Auth routes: /api/auth/register, /api/auth/login, /api/auth/me
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from models.models import db, User
+import email_service as mailer
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -27,10 +32,13 @@ def register():
         name          = data['name'].strip(),
         email         = data['email'].strip().lower(),
         password_hash = generate_password_hash(data['password']),
-        role          = 'guest',   # self-registration is always guest
+        role          = 'guest',
     )
     db.session.add(user)
     db.session.commit()
+
+    # Send welcome email
+    mailer.send_welcome(user.email, user.name)
 
     token = create_access_token(identity=str(user.id))
     return jsonify({'token': token, 'user': user.to_dict()}), 201

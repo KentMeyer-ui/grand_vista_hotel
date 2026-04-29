@@ -37,8 +37,8 @@ def create_staff():
         if not data.get(f):
             return jsonify({'error': f'{f} is required'}), 400
 
-    if data['role'] not in ('guest', 'staff', 'admin'):
-        return jsonify({'error': 'role must be guest, staff, or admin'}), 400
+    if data['role'] not in ('staff', 'admin'):
+        return jsonify({'error': 'Can only create staff or admin accounts'}), 400
 
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'Email already registered'}), 409
@@ -61,17 +61,10 @@ def update_user(user_id):
     if current.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
 
-    # FIXED: prevent admin from changing their own role
-    if current.id == user_id and 'role' in request.get_json(silent=True or {}):
-        data = request.get_json()
-        if 'role' in data and data['role'] != current.role:
-            return jsonify({'error': 'You cannot change your own role'}), 403
-
     target = User.query.get_or_404(user_id)
     data   = request.get_json()
 
     if 'role' in data:
-        # Extra guard: block self role change
         if target.id == current.id and data['role'] != current.role:
             return jsonify({'error': 'You cannot change your own role'}), 403
         if data['role'] not in ('guest', 'staff', 'admin'):
@@ -134,23 +127,34 @@ def summary_report():
     if user.role not in ('staff', 'admin'):
         return jsonify({'error': 'Staff access required'}), 403
 
-    total     = Booking.query.count()
-    confirmed = Booking.query.filter_by(status='confirmed').count()
-    pending   = Booking.query.filter_by(status='pending_review').count()
-    rejected  = Booking.query.filter_by(status='rejected').count()
-    cancelled = Booking.query.filter_by(status='cancelled').count()
-    prepay    = Booking.query.filter_by(status='requires_prepayment').count()
-    low_risk  = Booking.query.filter_by(risk_level='LOW').count()
-    med_risk  = Booking.query.filter_by(risk_level='MEDIUM').count()
-    high_risk = Booking.query.filter_by(risk_level='HIGH').count()
+    total       = Booking.query.count()
+    confirmed   = Booking.query.filter_by(status='confirmed').count()
+    pending     = Booking.query.filter_by(status='pending_review').count()
+    rejected    = Booking.query.filter_by(status='rejected').count()
+    cancelled   = Booking.query.filter_by(status='cancelled').count()
+    prepay      = Booking.query.filter_by(status='requires_prepayment').count()
+    checked_in  = Booking.query.filter_by(status='checked_in').count()
+    checked_out = Booking.query.filter_by(status='checked_out').count()
+    no_show     = Booking.query.filter_by(status='no_show').count()
+    low_risk    = Booking.query.filter_by(risk_level='LOW').count()
+    med_risk    = Booking.query.filter_by(risk_level='MEDIUM').count()
+    high_risk   = Booking.query.filter_by(risk_level='HIGH').count()
 
     return jsonify({
         'totals': {
-            'total': total, 'confirmed': confirmed,
-            'pending_review': pending, 'requires_prepayment': prepay,
-            'rejected': rejected, 'cancelled': cancelled,
+            'total':               total,
+            'confirmed':           confirmed,
+            'pending_review':      pending,
+            'requires_prepayment': prepay,
+            'rejected':            rejected,
+            'cancelled':           cancelled,
+            'checked_in':          checked_in,
+            'checked_out':         checked_out,
+            'no_show':             no_show,
         },
         'risk_distribution': {
-            'LOW': low_risk, 'MEDIUM': med_risk, 'HIGH': high_risk,
+            'LOW':    low_risk,
+            'MEDIUM': med_risk,
+            'HIGH':   high_risk,
         },
     }), 200

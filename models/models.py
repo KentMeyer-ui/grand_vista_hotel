@@ -1,8 +1,3 @@
-"""
-SQLAlchemy models for the Hotel Booking System.
-Tables: User, Room, Booking, SystemConfig
-"""
-
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
@@ -44,7 +39,7 @@ class Room(db.Model):
     price_per_night = db.Column(db.Float, nullable=False)
     capacity        = db.Column(db.Integer, nullable=False, default=2)
     description     = db.Column(db.String(300))
-    image_url       = db.Column(db.String(500), default='')   # NEW: room image
+    image_url       = db.Column(db.String(1000), default='')
     is_available    = db.Column(db.Boolean, default=True)
 
     bookings = db.relationship('Booking', backref='room', lazy=True)
@@ -80,11 +75,22 @@ class Booking(db.Model):
     risk_level       = db.Column(db.String(10))
     risk_probability = db.Column(db.Float)
 
+    # Statuses:
+    # pending_review       → HIGH risk, waiting for staff
+    # confirmed            → approved, guest expected
+    # requires_prepayment  → staff requests payment first
+    # rejected             → staff rejected it
+    # cancelled            → guest cancelled
+    # checked_in           → guest arrived and checked in
+    # checked_out          → guest has left
+    # no_show              → guest never arrived
     status         = db.Column(db.String(30), nullable=False, default='pending')
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     reviewed_at    = db.Column(db.DateTime)
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     staff_notes    = db.Column(db.String(500))
+    checked_in_at  = db.Column(db.DateTime)   # when guest actually arrived
+    checked_out_at = db.Column(db.DateTime)   # when guest actually left
 
     def total_nights(self):
         return (self.check_out - self.check_in).days
@@ -114,6 +120,8 @@ class Booking(db.Model):
             'created_at':       self.created_at.isoformat(),
             'reviewed_at':      self.reviewed_at.isoformat() if self.reviewed_at else None,
             'staff_notes':      self.staff_notes,
+            'checked_in_at':    self.checked_in_at.isoformat() if self.checked_in_at else None,
+            'checked_out_at':   self.checked_out_at.isoformat() if self.checked_out_at else None,
         }
 
 

@@ -1,11 +1,5 @@
 """
 Room routes
-  GET    /api/rooms                  — list all rooms (public)
-  GET    /api/rooms/<id>             — room detail (public)
-  GET    /api/rooms/available        — search available rooms by dates
-  POST   /api/rooms                  — create room (admin only)
-  PUT    /api/rooms/<id>             — update room (admin/staff)
-  DELETE /api/rooms/<id>             — delete room (admin only)
 """
 
 from datetime import date
@@ -22,9 +16,8 @@ def _get_current_user():
 
 
 def _rooms_booked_on(check_in: date, check_out: date):
-    """Return set of room IDs that overlap with the requested dates."""
     overlapping = Booking.query.filter(
-        Booking.status.in_(['confirmed', 'pending_review', 'requires_prepayment']),
+        Booking.status.in_(['confirmed', 'pending_review', 'requires_prepayment', 'checked_in']),
         Booking.check_in  < check_out,
         Booking.check_out > check_in,
     ).all()
@@ -98,6 +91,7 @@ def create_room():
         price_per_night = float(data['price_per_night']),
         capacity        = int(data.get('capacity', 2)),
         description     = data.get('description', ''),
+        image_url       = data.get('image_url', ''),
         is_available    = data.get('is_available', True),
     )
     db.session.add(room)
@@ -115,17 +109,22 @@ def update_room(room_id):
     room = Room.query.get_or_404(room_id)
     data = request.get_json()
 
-    for field in ['room_number', 'room_type', 'type_label',
-                  'price_per_night', 'capacity', 'description', 'is_available']:
+    # Staff can update everything EXCEPT price — only admin can change price
+    for field in ['room_number', 'room_type', 'type_label', 'capacity',
+                  'description', 'image_url', 'is_available']:
         if field in data:
             if field == 'room_type':
                 setattr(room, field, data[field].upper())
-            elif field == 'price_per_night':
-                setattr(room, field, float(data[field]))
-            elif field in ('capacity',):
+            elif field == 'capacity':
                 setattr(room, field, int(data[field]))
             else:
                 setattr(room, field, data[field])
+
+    # Only admin can change price
+    if 'price_per_night' in data:
+        if user.role != 'admin':
+            return jsonify({'error': 'Only admin can change room prices'}), 403
+        room.price_per_night = float(data['price_per_night'])
 
     db.session.commit()
     return jsonify(room.to_dict()), 200
@@ -139,6 +138,18 @@ def delete_room(room_id):
         return jsonify({'error': 'Admin access required'}), 403
 
     room = Room.query.get_or_404(room_id)
+
+    # Check if room has any bookings
+    has_bookings = Booking.query.filter_by(room_id=room_id).first()
+    if has_bookings:
+        # Deactivate instead of delete to preserve history
+        room.is_available = False
+        db.session.commit()
+        return jsonify({
+            'message': 'Room has booking history and cannot be deleted. It has been deactivated instead.',
+            'room': room.to_dict()
+        }), 200
+
     db.session.delete(room)
     db.session.commit()
-    return jsonify({'message': 'Room deleted'}), 200
+    return jsonify({'message': 'Room deleted successfully.'}), 200

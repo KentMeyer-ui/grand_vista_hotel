@@ -1,10 +1,16 @@
 """
 Hotel Booking System — Flask Backend
-Supports both SQLite (local) and PostgreSQL (production/Railway)
 """
 
 import os
 import sys
+
+# Load .env file if it exists (local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'ml'))
 
@@ -25,16 +31,13 @@ STATIC_FOLDER = os.path.join(os.path.dirname(__file__), 'static_build')
 def create_app():
     app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path='')
 
-    # Use DATABASE_URL from Railway env if available, else fall back to SQLite locally
     database_url = os.environ.get('DATABASE_URL', 'sqlite:///hotel.db')
-
-    # Railway gives postgres:// but SQLAlchemy needs postgresql://
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
     app.config['SQLALCHEMY_DATABASE_URI']        = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JWT_SECRET_KEY']                 = os.environ.get('JWT_SECRET_KEY', 'hotel-secret-change-in-production')
+    app.config['JWT_SECRET_KEY']                 = os.environ.get('JWT_SECRET_KEY', 'grandvista2024secret')
     app.config['JWT_ACCESS_TOKEN_EXPIRES']       = False
 
     db.init_app(app)
@@ -117,10 +120,6 @@ def _seed():
         db.session.add_all(configs)
         db.session.commit()
         print('[seed] Config created.')
-
-
-# For gunicorn compatibility
-app = create_app()
 
 
 if __name__ == '__main__':
