@@ -191,15 +191,19 @@ def cancel_booking(booking_id):
     if booking.guest_id != user.id and user.role == 'guest':
         return jsonify({'error': 'Access denied'}), 403
 
-    # Cancellation policy — must be more than 48 hours before check-in
+    # Cancellation policy:
+    # - Always allowed within 24 hours of making the booking (cooling-off period)
+    # - Otherwise must be more than 48 hours before check-in
     from datetime import timedelta
-    hours_until_checkin = (datetime.combine(booking.check_in, datetime.min.time()) - datetime.utcnow()).total_seconds() / 3600
+    hours_since_booking   = (datetime.utcnow() - booking.created_at).total_seconds() / 3600
+    hours_until_checkin   = (datetime.combine(booking.check_in, datetime.min.time()) - datetime.utcnow()).total_seconds() / 3600
+    within_cooling_off    = hours_since_booking < 24
 
     if booking.status in ("rejected", "cancelled", "checked_in", "checked_out", "no_show"):
         return jsonify({"error": "This booking cannot be cancelled"}), 400
 
-    if hours_until_checkin < 48 and booking.status == "confirmed":
-        return jsonify({"error": f"Cannot cancel — check-in is in less than 48 hours. Please call the hotel directly at +63 88 123 4567."}), 400
+    if not within_cooling_off and hours_until_checkin < 48 and booking.status == "confirmed":
+        return jsonify({"error": "Cannot cancel — check-in is in less than 48 hours. Please call the hotel directly at +63 88 123 4567."}), 400
 
     booking.status = 'cancelled'
     db.session.commit()

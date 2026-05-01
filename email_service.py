@@ -20,7 +20,8 @@ def _send(to_email: str, subject: str, html: str) -> bool:
     try:
         if not GMAIL_USER or not GMAIL_PASSWORD:
             print(f'[email] Skipped (no credentials): {subject}')
-            return False
+        return False
+            return
 
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
