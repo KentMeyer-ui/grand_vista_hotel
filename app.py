@@ -121,6 +121,8 @@ def _seed():
         db.session.commit()
         print('[seed] Config created.')
 
+
+# For gunicorn compatibility
 app = create_app()
 
 if __name__ == '__main__':
