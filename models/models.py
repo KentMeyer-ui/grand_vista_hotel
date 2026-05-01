@@ -5,7 +5,7 @@ db = SQLAlchemy()
 
 
 class User(db.Model):
-    __tablename__ = 'users'
+    __tablename__ = 'hotel_users'
 
     id            = db.Column(db.Integer, primary_key=True)
     name          = db.Column(db.String(120), nullable=False)
@@ -30,7 +30,7 @@ class User(db.Model):
 
 
 class Room(db.Model):
-    __tablename__ = 'rooms'
+    __tablename__ = 'hotel_rooms'
 
     id              = db.Column(db.Integer, primary_key=True)
     room_number     = db.Column(db.String(10), unique=True, nullable=False)
@@ -59,11 +59,11 @@ class Room(db.Model):
 
 
 class Booking(db.Model):
-    __tablename__ = 'bookings'
+    __tablename__ = 'hotel_bookings'
 
     id                   = db.Column(db.Integer, primary_key=True)
-    guest_id             = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    room_id              = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
+    guest_id             = db.Column(db.Integer, db.ForeignKey('hotel_users.id'), nullable=False)
+    room_id              = db.Column(db.Integer, db.ForeignKey('hotel_rooms.id'), nullable=False)
     check_in             = db.Column(db.Date, nullable=False)
     check_out            = db.Column(db.Date, nullable=False)
     adults               = db.Column(db.Integer, nullable=False, default=1)
@@ -87,10 +87,10 @@ class Booking(db.Model):
     status         = db.Column(db.String(30), nullable=False, default='pending')
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     reviewed_at    = db.Column(db.DateTime)
-    reviewed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey('hotel_users.id'))
     staff_notes    = db.Column(db.String(500))
-    checked_in_at  = db.Column(db.DateTime)   # when guest actually arrived
-    checked_out_at = db.Column(db.DateTime)   # when guest actually left
+    checked_in_at  = db.Column(db.DateTime)
+    checked_out_at = db.Column(db.DateTime)
 
     def total_nights(self):
         return (self.check_out - self.check_in).days
@@ -126,7 +126,7 @@ class Booking(db.Model):
 
 
 class SystemConfig(db.Model):
-    __tablename__ = 'system_config'
+    __tablename__ = 'hotel_config'
 
     key   = db.Column(db.String(80), primary_key=True)
     value = db.Column(db.String(300), nullable=False)
