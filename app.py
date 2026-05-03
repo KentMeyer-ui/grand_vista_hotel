@@ -37,6 +37,13 @@ def create_app():
 
     app.config['SQLALCHEMY_DATABASE_URI']        = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS']       = {
+        'pool_pre_ping': True,      # test connection before using it
+        'pool_recycle':  280,       # recycle connections every 280 seconds
+        'pool_timeout':  20,
+        'pool_size':     5,
+        'max_overflow':  2,
+    }
     app.config['JWT_SECRET_KEY']                 = os.environ.get('JWT_SECRET_KEY', 'grandvista2024secret')
     app.config['JWT_ACCESS_TOKEN_EXPIRES']       = False
 
@@ -121,8 +128,6 @@ def _seed():
         db.session.commit()
         print('[seed] Config created.')
 
-
-# For gunicorn compatibility
 app = create_app()
 
 if __name__ == '__main__':
